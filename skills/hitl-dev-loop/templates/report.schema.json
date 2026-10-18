@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "changes", "tests", "unfinished", "risks", "manual_checks"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["done", "in_progress", "blocked"],
+      "description": "done: the task is complete and ready for verification. in_progress: more work is needed and you will continue. blocked: you cannot continue without a decision or input from a human."
+    },
+    "summary": { "type": "string", "description": "One or two sentences, in the user's language. Used as the commit message subject." },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "why"],
+        "properties": { "path": { "type": "string" }, "why": { "type": "string" } }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "description": "Only tests you actually ran in this task.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "result"],
+        "properties": {
+          "command": { "type": "string" },
+          "result": { "type": "string", "enum": ["passed", "failed", "not_run"] }
+        }
+      }
+    },
+    "unfinished": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "manual_checks": { "type": "array", "items": { "type": "string" }, "description": "What the user should check by hand in the real product." }
+  }
+}

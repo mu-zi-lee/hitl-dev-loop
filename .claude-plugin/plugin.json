@@ -1,7 +1,7 @@
 {
   "name": "hitl-dev-loop",
   "description": "Human-in-the-loop development loop: Claude plans, dispatches and reviews; Codex CLI implements in isolated git worktrees; you test the product and decide.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "mu-zi-lee" },
   "license": "MIT",
   "keywords": ["codex", "orchestration", "worktree", "human-in-the-loop", "workflow", "agents"]

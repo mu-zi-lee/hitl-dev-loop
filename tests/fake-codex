@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Scriptable stand-in for `codex exec` used by the tests.
+# FAKE_DIR holds: script (one action per line, consumed in order), calls counter,
+# prompt.N (stdin of call N). Actions:
+#   ok-progress   report in_progress           done-change  edit work.txt, report done
+#   done-nochange report done, change nothing  done-fix     create fixed.txt, report done
+#   done-oos      edit other.txt (out of scope) clean-oos   remove other.txt + edit work.txt, done
+#   blocked       report blocked               fail         thread.started + turn.failed, exit 1
+#   crash         no output, exit 2            hang         sleep 300
+#   set-worktree  sets core.worktree in the shared git config, reports in_progress
+set -u
+[ "${1:-}" = --version ] && { echo "codex-fake 1.0"; exit 0; }
+dir=""; out=""; prev=""; mode=start
+for a in "$@"; do
+  case "$prev" in -C) dir=$a;; -o) out=$a;; esac
+  [ "$a" = resume ] && mode=resume
+  prev=$a
+done
+if [ -n "$dir" ]; then cd "$dir" || exit 9; fi
+n=$(( $(cat "$FAKE_DIR/calls" 2>/dev/null || echo 0) + 1 )); echo $n > "$FAKE_DIR/calls"
+cat > "$FAKE_DIR/prompt.$n"
+echo "$mode" > "$FAKE_DIR/mode.$n"
+action=$(sed -n "${n}p" "$FAKE_DIR/script"); action=${action:-ok-progress}
+report() { printf '{"status":"%s","summary":"%s","changes":[],"tests":[],"unfinished":[],"risks":[],"manual_checks":[]}' "$1" "$2" > "$out"; }
+events() { echo '{"type":"thread.started","thread_id":"fake-session-1"}'; echo '{"type":"turn.started"}'; }
+done_ok() { echo '{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":10}}'; }
+case "$action" in
+  ok-progress) events; done_ok; report in_progress "working";;
+  done-change) events; echo "change $n" >> work.txt; done_ok; report "done" "edit work";;
+  done-nochange) events; done_ok; report "done" "nothing";;
+  done-fix) events; echo ok > fixed.txt; done_ok; report "done" "fixed";;
+  done-oos) events; echo x >> other.txt; echo "change $n" >> work.txt; done_ok; report "done" "oos";;
+  clean-oos) events; rm -f other.txt; echo "change $n" >> work.txt; done_ok; report "done" "cleaned";;
+  blocked) events; done_ok; report blocked "need a decision";;
+  fail) events; echo '{"type":"turn.failed","error":{"message":"fake model error"}}'; exit 1;;
+  crash) exit 2;;
+  hang) events; sleep 300;;
+  set-worktree) events; git config -f "$(git rev-parse --path-format=absolute --git-common-dir)/config" core.worktree /tmp/elsewhere; done_ok; report in_progress "oops";;
+  *) echo "unknown action $action" >&2; exit 9;;
+esac

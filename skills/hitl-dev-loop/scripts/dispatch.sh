@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# usage: dispatch.sh <name>  — start Codex on the task brief, then keep it going.
-# Long-running: start it in the background.
+# usage: dispatch.sh <name> [--detach]
+# Starts (or continues) a task: checks the brief and the parallel limit, then
+# runs drive.sh. Long-running; run it in the background or use --detach.
 HERE=$(cd "$(dirname "$0")" && pwd); . "$HERE/lib.sh"
-name=${1:?task name}; wt=$(task_dir "$name")
-[ -d "$wt" ] || { echo "no worktree $wt (run new-task.sh)" >&2; exit 1; }
-mkdir -p "$AGENT_HOME/logs"
-base=$(git -C "$wt" rev-parse HEAD)
-add_dirs=(--add-dir "$(git_common_dir)")
-IFS=: read -r -a extra <<<"$CODEX_WRITABLE_DIRS"
-for d in ${extra[@]+"${extra[@]}"}; do [ -n "$d" ] && add_dirs+=(--add-dir "${d/#\~/$HOME}"); done
-# shellcheck disable=SC2086
-cat "$AGENT_HOME/briefs/common.md" "$AGENT_HOME/briefs/$name.md" | "$CODEX_BIN" exec -C "$wt" -s workspace-write \
-  -c "sandbox_workspace_write.network_access=$([ "$CODEX_NETWORK" = 1 ] && echo true || echo false)" \
-  "${add_dirs[@]}" $CODEX_EXTRA_ARGS -o "$(task_final "$name")" - > "$(task_log "$name")" 2>&1
-echo "exit $?" >> "$(task_log "$name")"
-sid=$(grep -m1 "session id" "$(task_log "$name")" | awk '{print $3}')
-[ -n "$sid" ] || { echo "codex did not start; see $(task_log "$name")" >&2; exit 1; }
-echo "$sid" > "$AGENT_HOME/logs/$name.sid"
-exec "$HERE/drive.sh" "$name" "$base"
+name=${1:?task name}; require_task "$name"
+brief="$AGENT_HOME/briefs/$name.md"
+[ -s "$brief" ] || die "brief is empty: $brief"
+grep -q '^## Goal' "$brief" && ! sed -n '/^## Goal/,/^## /p' "$brief" | grep -v '^##' | grep -v '^<!--' | grep -q '[^[:space:]]' \
+  && die "the Goal section of $brief is empty"
+pid_alive "$(state_get "$name" pid)" && die "task $name is already running (pid $(state_get "$name" pid))"
+if git config -f "$(git_config_file)" --get core.worktree >/dev/null 2>&1; then
+  die "the shared git config sets core.worktree=$(git config -f "$(git_config_file)" --get core.worktree); git commands in $REPO_ROOT act on that directory. Remove it (git config -f $(git_config_file) --unset core.worktree) after checking both trees."
+fi
+agent_version >/dev/null || die "agent '$AGENT_ADAPTER' is not available (set CODEX_BIN?)"
+active=$(running_tasks | wc -l | tr -d ' ')
+[ "$active" -lt "$MAX_PARALLEL" ] || die "$active tasks already running (MAX_PARALLEL=$MAX_PARALLEL): $(running_tasks | tr '\n' ' ')"
+"$HERE/conflicts.sh" "$name" --quiet || true
+if [ "${2:-}" = --detach ]; then
+  nohup "$HERE/drive.sh" "$name" > "$(task_dir "$name")/drive.out" 2>&1 < /dev/null &
+  echo "dispatched $name (pid $!)"
+else
+  exec "$HERE/drive.sh" "$name"
+fi

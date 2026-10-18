@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+      - name: Shellcheck
+        run: shellcheck -S warning skills/hitl-dev-loop/scripts/*.sh skills/hitl-dev-loop/scripts/adapters/*.sh tests/run.sh tests/fake-codex
+      - name: Validate JSON
+        run: |
+          for f in .claude-plugin/*.json skills/hitl-dev-loop/templates/*.json; do python3 -m json.tool "$f" > /dev/null; done
+      - name: Tests (macOS uses the system bash 3.2)
+        run: tests/run.sh
