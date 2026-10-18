@@ -214,7 +214,9 @@ t_stop_kills_a_running_task() {
   pid=$(st alpha pid)
   "$S/stop.sh" alpha >/dev/null
   check "driver gone" bash -c "! kill -0 $pid 2>/dev/null"
-  check "no fake codex left" bash -c "! pgrep -f 'fake-codex' >/dev/null"
+  # '[f]ake-codex' so the pattern cannot match this check's own command line.
+  for _ in 1 2 3 4 5; do pgrep -f '[f]ake-codex' >/dev/null || break; sleep 1; done
+  check "no fake codex left" bash -c "! pgrep -f '[f]ake-codex' >/dev/null"
   check "status stopped" eq "$(st alpha status)" stopped
 }
 
