@@ -1,0 +1,13 @@
+{
+  "name": "hitl-dev-loop",
+  "description": "Human-in-the-loop Claude + Codex development loop",
+  "owner": { "name": "mu-zi-lee" },
+  "plugins": [
+    {
+      "name": "hitl-dev-loop",
+      "description": "Claude orchestrates, Codex CLI implements in git worktrees, you review the real product and decide.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
